@@ -77,8 +77,6 @@ On first startup the server creates a SQLite database at `server/data/studio.db`
 - Password: `admin123`
 - The UI forces a password change after the first login.
 
-Interactive API reference: <http://127.0.0.1:8800/docs>
-
 ### 2. Start the frontend
 
 Node.js 18 or newer is required.
