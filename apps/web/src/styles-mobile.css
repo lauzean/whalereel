@@ -1,0 +1,1174 @@
+/* ============================================================================
+ * 移动端适配层（手机 + 平板）
+ *
+ * 设计约定（改这个文件前先读）：
+ * 1. **只在窄屏 / 触摸媒体查询内写规则**——本文件不声明任何桌面端样式，
+ *    因此对既有 PC 观感零影响；桌面端看到的仍是 styles.css 的原样。
+ * 2. 断点三档（媒体查询不支持 var()，故此处必须写字面量）：
+ *      超小屏 ≤ 520px（小屏手机竖屏）
+ *      手机   ≤ 768px（主档，抽屉/底部 tab/单列堆叠在此生效）
+ *      平板   ≤ 1024px（适度收窄：侧栏变窄、多栏改两栏或堆叠）
+ *    触摸专属规则用 (pointer: coarse) / (hover: none) 判定，与宽度解耦
+ *    （带触摸屏的桌面浏览器仍按鼠标处理）。
+ * 3. 交互取舍：触摸端没有 hover，所有「悬浮才出现」的操作一律常显；
+ *    可点区域不小于 --m-tap（44px）；输入框字号不小于 16px（iOS 聚焦不放大）；
+ *    横向可滑区域给 scroll-snap 与惯性滚动，滚动链用 overscroll-behavior 阻断。
+ * 4. 竖向空间宝贵：顶栏/工具条在手机上压到 48-52px，正文区优先。
+ * ========================================================================== */
+
+:root {
+  --m-tap: 44px;               /* 主操作/导航/弹窗按钮（拇指区目标） */
+  --m-tap-mid: 40px;           /* 工作台工具条按钮（批量生成/下载这类） */
+  --m-tap-compact: 36px;       /* 密集行内的次级按钮与小控件（顶栏、卡片内操作） */
+  --m-gutter: 14px;            /* 手机端页面左右安全边距 */
+  --m-bar-h: 58px;             /* 底部 tab 栏高度（含 1px 描边，不含安全区） */
+  --m-sheet-anchor: 0px;       /* 底部弹层需要让位的高度：平板无底部条为 0，手机＝--m-bar-h */
+  --m-nav-h: 52px;             /* 画布底部导航条高度（不含安全区） */
+  --m-preview-bar: 52px;       /* 故事板预览弹层收起时露出的标题条高度 */
+  --m-sheet-radius: 16px;      /* 底部弹层圆角 */
+  --m-safe-top: env(safe-area-inset-top, 0px);
+  --m-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --m-safe-left: env(safe-area-inset-left, 0px);
+  --m-safe-right: env(safe-area-inset-right, 0px);
+  --m-ease: cubic-bezier(0.22, 0.61, 0.36, 1);   /* 统一缓动：起步快、收尾稳 */
+}
+
+/* ============================ 全局触摸行为 ============================ */
+
+/* 触摸端（手机 / 平板 / 触屏设备）：点击尺寸与输入框字号。
+   判据用 (pointer: coarse) 而不是屏宽——平板同样需要 44px 的可点区域，
+   而带触摸屏的桌面（主指针仍是鼠标）不受影响。 */
+@media (pointer: coarse) {
+  /* 表单控件字号统一 16px：iOS Safari 对 <16px 的输入框会在聚焦时自动放大整页。
+     选择器写成 :is(...):not(...):not(...)（权重 0-2-1）是为了压过 styles.css 里
+     那些按组件定的更具体规则（如 .param textarea / .model-select / .scr-ed 的
+     12-14px），否则字号改不动。 */
+  :is(input, textarea, select):not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+    font-size: 16px;
+  }
+  /* 控件三档整体放大到触摸尺寸：styled.css 里的控件规则只认这三个令牌，
+     改这里就等于「手机上所有按钮/输入框/下拉框一起放大」，不必逐类改规则。 */
+  :root {
+    --ctl-h-sm: var(--m-tap-compact);   /* 36：卡片内次级操作 */
+    --ctl-h-md: var(--m-tap-mid);       /* 40：工具栏、列表行 */
+    --ctl-h-lg: var(--m-tap);           /* 44：主操作、表单输入 */
+    --ctl-pad-sm: 10px;
+    --ctl-pad-md: 12px;
+    --ctl-pad-lg: 16px;
+    --ctl-fs-sm: 12px;
+    --ctl-fs-md: 13px;
+  }
+  /* 触摸端按钮默认**紧凑**：36px 高、宽度按内容。
+     手机上把每个按钮都做成 44px + 拉满宽度会挤掉正文、整体显得笨重（用户反馈），
+     只有主操作与导航才用 44px。 */
+  button,
+  select {
+    min-height: var(--m-tap-compact);
+  }
+  /* 主操作、导航、弹窗按钮：拇指区 44px */
+  .fb-btn,
+  .parse-btn,
+  .home-create,
+  .gen-btn,
+  .login-form button,
+  .chat-send-btn,
+  .system-nav,
+  .drama-menu button,
+  .settings-nav {
+    min-height: var(--m-tap);
+  }
+  /* 工作台工具条按钮：40px（批量生成/合成本集/下载这类，比 36 好点、比 44 紧凑） */
+  .sb-btn,
+  .sb-actions .sb-btn {
+    min-height: var(--m-tap-mid);
+  }
+}
+
+/* 触摸端滚动容器：惯性滚动 + 阻断滚动链（内层滚到底不回弹整页） */
+@media (pointer: coarse) {
+  /* 只给**最外层**滚动容器加 contain：它挡住的是「滚到底继续带动整页」。
+     嵌套在弹窗/面板里的小滚动区（提示词框、报告框、思考内容…）**绝不能加**——
+     overscroll-behavior: contain 会切断滚动链，用户在框里滚到底就再也够不到
+     外层弹窗剩下的内容（实测用户反馈「参数弹窗内容无法滑到最底部」）。 */
+  .ep-list-body,
+  .ep-ws-body,
+  .sb-rail,
+  .sb-cards,
+  .sb-preview,
+  .asset-list,
+  .palette,
+  .chat-messages,
+  .chat-tabs,
+  .ast-body,
+  .scr-proc,
+  .planbox-b,
+  .system-body,
+  .gen-params-modal,
+  .vp-zoom-area,
+  .prompts-list {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* 触摸端的按下反馈：没人有 hover，用不透明度给出「已按到」的即时回应 */
+  button:not(:disabled):active,
+  .project-card:active,
+  .asset-card:active,
+  .shot-card:active,
+  .ep-row:active,
+  .prow:active,
+  .rail-item:active,
+  .mention-item:active,
+  .assets-tabs button:active,
+  .preview-tab:active,
+  .chat-tab:active {
+    opacity: 0.68;
+  }
+
+  /* 长按画布/卡片不应弹出「保存图片/复制」系统菜单（画布拖动时误触发） */
+  .react-flow__pane,
+  .sb-cards,
+  .home-cards {
+    -webkit-touch-callout: none;
+  }
+}
+
+/* 触摸端不存在 hover：把「贴住不放」的悬停态关掉（点完不留下残留样式） */
+@media (hover: none) {
+  .project-card:hover { transform: none; }
+  .asset-card:hover { transform: none; }
+  .kind-thumb:hover { opacity: 0.72; }
+  .pc-delete { opacity: 1; }                 /* 删除按钮常显（原为 hover 才现） */
+  .kind-thumb-wrap:hover .kind-thumb-del { display: none; }
+  .kind-thumb-del { display: inline-flex; }  /* 缩略图删除角标常显 */
+  /* 首帧操作按钮改为图下常显、复用 vp-edit-btn（2026-09-30）：触摸端尺寸由
+     统一的触摸目标组规则给（.vp-edit-btn 已在组里），这里不再单独加样式 */
+}
+
+/* ============================ 首页 ============================ */
+@media (max-width: 1024px) {
+  /* 保留底部留白：桌面 `.home-main` 的 padding-bottom: 64px 不能被清零，
+     否则最后一行卡片贴死视口底边（首页滚动余量为 0） */
+  .home-main { width: 100%; max-width: 100%; padding: 0 var(--m-gutter) 56px; }
+  .home-cards { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+}
+
+@media (max-width: 768px) {
+  .home-topbar {
+    height: 52px; padding: 0 var(--m-gutter);
+    /* 顶部安全区（iPhone 状态栏/刘海） */
+    height: calc(52px + var(--m-safe-top));
+    padding-top: var(--m-safe-top);
+  }
+  /* 品牌文字让位给状态与账号：手机上留 logo 即可（少占 ~120px） */
+  /* 品牌名从「AI Video Studio」（19 字符）缩到「鲸影」（2 字）后不再挤占顶栏，
+     手机上照常显示；其余空间给 GPU 徽标与欢迎语 */
+  .home-brand span:not(.home-logo) { font-size: 14px; }
+  .topbar-right { gap: 8px; min-width: 0; }
+  .topbar-user {
+    font-size: 12px; max-width: 84px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  /* GPU 徽标：手机上退化为小圆点（文字入 title 不可达，故保留可点提示） */
+  .topbar-gpu { padding: 4px 9px; font-size: 11px; }
+  .topbar-icon-btn { width: var(--m-tap); height: var(--m-tap); }
+  .home-hero { padding: 26px 0 16px; }
+  .home-hero h1 { font-size: 26px; letter-spacing: 0.4px; margin-bottom: 8px; }
+  .home-hero .sub { font-size: 13px; }
+  .home-toolbar { gap: 10px; margin: 2px 0 14px; }
+  /* 主按钮按内容宽度，不再拉满整行（手机上「什么都撑满」会显得笨重） */
+  .home-create { padding: 0 20px; }
+  .home-count { flex: none; }
+  /* 首页搜索框（2026-09-30）：触摸端换行铺开、字号 ≥16px 防 iOS 聚焦缩放 */
+  .home-toolbar { flex-wrap: wrap; }
+  .home-toolbar-right { flex: 1 1 100%; justify-content: space-between; }
+  .home-search { flex: 1; width: auto; min-height: var(--m-tap); font-size: 16px; }
+  /* 手机单列：卡片直接铺满宽度，一行一个（信息不压缩） */
+  .home-cards { grid-template-columns: 1fr; gap: 14px; }
+  .home-empty { margin-top: 40px; text-align: center; }
+  .pc-name { font-size: 16px; }
+  .pc-desc { min-height: 0; -webkit-line-clamp: 3; }
+}
+
+/* ============================ 登录页 ============================ */
+@media (max-width: 768px) {
+  .login-page {
+    align-items: flex-start;             /* 键盘弹起时从顶部起排，避免卡片被顶飞 */
+    overflow-y: auto;
+    /* 顶部留白用视口比例：既不贴死顶边，也不至于在矮屏（含键盘）里把卡片挤出视口 */
+    padding: 10vh 0 calc(24px + var(--m-safe-bottom));
+  }
+  .login-card {
+    width: 100%; max-width: none; margin: 0 var(--m-gutter);
+    padding: 30px 22px 26px; border-radius: 16px;
+  }
+  .login-brand { font-size: 18px; }
+  .login-sub { margin: 10px 0 22px; }
+  .login-form input { padding: 13px 15px; min-height: var(--m-tap); }
+  .login-form button { padding: 14px; min-height: 50px; font-size: 16px; }
+}
+
+/* ============================ 系统管理页 ============================ */
+@media (max-width: 1024px) {
+  .system-side { width: 168px; }
+  .system-body { padding: 18px 18px 40px; }
+}
+
+@media (max-width: 768px) {
+  /* 左侧竖排菜单 → 顶部横向可滑 tab 条（主次分明：内容区独占整屏） */
+  .system-layout { flex-direction: column; }
+  .system-side {
+    width: 100%; flex: none; flex-direction: row; gap: 6px;
+    padding: 8px var(--m-gutter); overflow-x: auto;
+    border-right: none; border-bottom: 1px solid #22263a;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+  .system-side::-webkit-scrollbar { display: none; }
+  /* 分组标题在横滑条里没有意义（分组靠顺序体现） */
+  .system-group { display: none; }
+  .system-nav {
+    flex: none; white-space: nowrap; padding: 0 14px;
+    min-height: var(--m-tap); display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid #2a3049;
+  }
+  .system-nav.on { border-color: #5b8cff; }
+  .system-body { padding: 14px var(--m-gutter) calc(28px + var(--m-safe-bottom)); }
+  .admin-content { width: 100%; }
+
+  /* 新建用户表单：两个输入框各占一行，勾选与按钮并作一行。
+     必须排除复选框——否则 22px 的勾选框会被这条「整行 + 44px」拉成 118×44 的大方块 */
+  .admin-create { gap: 8px; }
+  .admin-create input:not([type="checkbox"]) {
+    flex: 1 1 100%; min-height: var(--m-tap);
+  }
+  .admin-check {
+    flex: 1 1 auto; min-height: var(--m-tap-compact); white-space: nowrap;
+    accent-color: #5b8cff;
+  }
+  .admin-create > button { min-height: var(--m-tap); }
+
+  /* 五列账号表 → 卡片流：用户名/角色一行，状态与最近登录一行，操作按钮成排。
+     390px 宽下五列会被压到每个单元格都换行（徽标文字竖排），不可读。 */
+  .admin-table { border: none; background: transparent; overflow: visible; }
+  .admin-head { display: none; }
+  .admin-row {
+    grid-template-columns: 1fr auto;
+    gap: 6px 10px; padding: 12px 14px; margin-bottom: 10px;
+    border: 1px solid #2a3049; border-radius: 12px; background: #141826;
+  }
+  .admin-row:last-child { border-bottom: 1px solid #2a3049; }
+  .admin-row > .admin-actions { grid-column: 1 / -1; }
+  .admin-username { font-size: 15px; }
+  .admin-time { text-align: right; white-space: nowrap; }
+  .admin-actions { gap: 8px; margin-top: 2px; }
+  .admin-actions button { min-height: var(--m-tap-compact); }
+}
+
+/* ============================ 反馈组件（Toast / 确认框） ============================ */
+@media (max-width: 768px) {
+  .fb-toast-wrap {
+    top: calc(10px + var(--m-safe-top));
+    left: var(--m-gutter); right: var(--m-gutter);
+    transform: none; max-width: none;
+  }
+  .fb-toast { padding: 12px 12px; font-size: 14px; }
+  .fb-toast-close { min-height: 0; padding: 6px 8px; font-size: 18px; }
+
+  /* 确认/输入弹窗 → 底部弹层（拇指区，贴合移动端习惯） */
+  .fb-mask { align-items: flex-end; }
+  .fb-dialog {
+    width: 100%; max-width: 100%;
+    padding: 20px var(--m-gutter) calc(16px + var(--m-safe-bottom));
+    border-radius: var(--m-sheet-radius) var(--m-sheet-radius) 0 0;
+    border-bottom: none;
+    animation: m-sheet-in 0.22s var(--m-ease) both;
+  }
+  .fb-dialog-title { font-size: 16px; }
+  .fb-dialog-message { font-size: 14px; }
+  /* 操作行保持横排、内容宽度、右对齐（整宽竖排在大屏手机上过于笨重） */
+  .fb-dialog-actions { gap: 8px; margin-top: 16px; }
+  .fb-dialog-actions .fb-btn { min-width: 88px; }
+}
+
+/* 底部弹层入场动效（只动 transform，合成层内不掉帧） */
+@keyframes m-sheet-in {
+  from { transform: translateY(18px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* ============================ 各类弹窗（手机档统一走底部弹层） ============================ */
+@media (max-width: 768px) {
+  /* 弹窗遮罩改为底部对齐 + 允许弹层内滚动 */
+  .settings-mask,
+  .gen-params-mask,
+  .outline-mask,
+  .vp-zoom-mask,
+  .episode-play-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .settings-dialog,
+  .gen-params-modal,
+  .outline-card,
+  .vp-zoom-modal,
+  .episode-play-box,
+  .create-project-dialog,
+  .project-settings-dialog {
+    width: 100%; max-width: 100%;
+    /* 高度用百分比而不是 vh/dvh：遮罩是 inset:0 的浏览器视口，百分比必然落在它之内；
+       而 vh/dvh 在部分国产内核（华为/夸克）会算成比可视区更高，弹窗盒子高过屏幕后
+       滚到顶最后几行仍在屏幕外（实测用户反馈「能滑动但滑不到最底部内容」）。 */
+    max-height: 92%;
+    border-radius: var(--m-sheet-radius) var(--m-sheet-radius) 0 0;
+    padding-bottom: var(--m-safe-bottom);
+    animation: m-sheet-in 0.22s var(--m-ease) both;
+  }
+  /* 放大编辑弹窗：手机上铺满剩余高度，编辑区最大化 */
+  /* 视频画面描述放大：手机档铺满整屏做编辑面。原来只设 90dvh 底部弹层——
+     顶部 10% 露出应用头部（看着像「弹窗在页面下面」），底部提示行还被裁掉。 */
+  .vp-zoom-mask { align-items: stretch; padding: 0; }
+  .vp-zoom-modal {
+    width: 100%; height: 100%; max-height: none;
+    border-radius: 0; border-left: none; border-right: none;
+    padding: calc(10px + var(--m-safe-top)) var(--m-gutter) calc(10px + var(--m-safe-bottom));
+    gap: 8px;
+  }
+  .vp-zoom-head { flex-wrap: wrap; row-gap: 6px; }
+  .vp-zoom-title { font-size: 13px; }
+  .vp-zoom-mention { left: var(--m-gutter); right: var(--m-gutter); bottom: calc(8px + var(--m-safe-bottom)); }
+
+  /* 系统配置弹窗（旧入口仍可能出现）：左栏 → 顶部横滑 */
+  .settings-side {
+    width: 100%; flex: none; flex-direction: row; gap: 6px;
+    padding: 8px 12px; overflow-x: auto;
+    border-right: none; border-bottom: 1px solid #22263a;
+  }
+  .settings-nav {
+    flex: none; white-space: nowrap; min-height: var(--m-tap);
+    display: inline-flex; align-items: center;
+  }
+  .settings-layout { flex-direction: column; }
+
+  /* 重算/AI 优化弹窗的「新的描述」编辑框：手机档给个够写的高度（弹层自身可滚） */
+  .prompt-opt-result { min-height: 260px; }
+  /* 参数弹窗：提示词原文框**在手机上不再自己滚**（去掉 max-height 与 overflow）。
+     原因：iOS Safari 的触摸滚动是「锁」在起手那个滚动容器上的，框内滚到底后必须抬手再滑
+     才能滚外层——用户感受就是「滑不到底」。手机上让内容按原高展开、只留弹窗一层滚动，
+     一次滑动到底。桌面保持 300px 框内滚动（鼠标滚轮可以链式续滚，没这个问题）。 */
+  .gen-params-prompt { max-height: none; overflow: visible; }
+  /* 参数弹窗：手机档直接占满整屏（与「放大编辑」同款做法）。
+     它内容长（参考图 + 整段提示词原文）、必须能一滑到底，用底部弹层时高度受
+     视口单位影响，在部分国产内核上会滚不到末端；height:100% 相对遮罩算，稳。 */
+  .gen-params-mask { align-items: stretch; }
+  .gen-params-modal {
+    height: 100%; max-height: 100%; width: 100%; max-width: 100%;
+    border: none; border-radius: 0;
+    padding: calc(12px + var(--m-safe-top)) var(--m-gutter) calc(24px + var(--m-safe-bottom));
+  }
+  /* 弹层底部再留出余量：工具栏/安全区会吃掉一截可视高度，最后一行贴着底边时容易被挡住。
+     滚动容器末端的 padding 是能被滚出来的。 */
+  /* 同理：AI 优化弹窗里的提示词预览框也不做内层滚动 */
+  .prompt-opt-pre { max-height: none; overflow: visible; }
+  /* 弹窗内表单行：窄屏改为纵向（标签在上、控件在下） */
+  .project-settings-row { flex-direction: column; align-items: stretch; gap: 6px; }
+  .project-settings-row .model-select { max-width: none; }
+  .project-settings-check { justify-content: flex-start; text-align: left; }
+  .project-settings-body .fb-btn { align-self: stretch; }
+  .np-pills { justify-content: flex-start; }
+  .provider-foot { flex-wrap: wrap; gap: 8px; }
+  .provider-save { margin-left: auto; }
+}
+
+/* ============================ 图片灯箱 ============================ */
+@media (max-width: 768px) {
+  .preview-lightbox { padding: var(--m-gutter); }
+  .preview-lightbox img,
+  .preview-lightbox video {
+    /* 固定浮层的高度上限一律用百分比：相对 inset:0 的容器算，老内核也算得准 */
+    max-width: 100%; max-height: 84%;
+  }
+}
+
+/* ============================ 系统设置内容页（模型管理 / 端点 / 提示词 / 技能包 / 调用日志） ============================ */
+@media (max-width: 1024px) {
+  .prompts-list { width: 176px; }
+  /* 调用日志：聚合表在平板上就要能横滑（九列挤不下） */
+  .calls-table { min-width: 720px; }
+}
+
+/* 调用日志（系统管理）：手机上指标卡两列、趋势柱横滑、触摸尺寸到位 */
+@media (max-width: 768px) {
+  .calls-cards { gap: 8px; }
+  .calls-card { flex: 1 1 calc(50% - 4px); min-width: 0; }
+  .calls-card-num { font-size: 17px; }
+  .calls-days { overflow-x: auto; height: 88px; }
+  .calls-chip { min-height: var(--m-tap-compact); padding: 0 12px; }
+  .calls-search { flex: 1 1 100%; min-height: var(--m-tap); font-size: 16px; }
+  .calls-filter { min-height: var(--m-tap-compact); }
+  .calls-row-err { white-space: normal; }
+  .calls-ms { margin-left: 0; }
+  /* 调用日志分页与详情（2026-09-30）：触摸端把「查看详情」「加载更多」放大到可点 */
+  .calls-detail-btn { min-height: var(--m-tap-compact); padding: 0 12px; }
+  .calls-more .calls-chip { min-height: var(--m-tap); }
+  .call-detail-meta { grid-template-columns: 52px 1fr; }
+  .call-detail-pre { max-height: 32vh; }
+
+  /* 自定义日期区间：手机档整行铺开（两个日期框各占一半），字号 16px 防
+     iOS 聚焦整页放大；触摸高度按 --m-tap */
+  .calls-range { flex: 1 1 100%; gap: 6px; }
+  .calls-date {
+    flex: 1 1 auto; min-width: 0; min-height: var(--m-tap);
+    font-size: 16px;
+  }
+  .calls-controls { flex-wrap: wrap; row-gap: 8px; }
+
+  /* 自学习建议：标题行换行、按钮独占一行——390px 下按钮被挤成一竖条
+     （「应/用/到/提/示/词」四行）既难看又不好点 */
+  .lessons-item-head { flex-wrap: wrap; row-gap: 6px; }
+  .lessons-item-target { flex: 1 1 100%; white-space: normal; }
+  .lessons-item-head .prompt-btn { flex: 1 1 100%; min-height: var(--m-tap); }
+  .lessons-item-body { max-height: 240px; }
+}
+
+@media (max-width: 768px) {
+  /* 模型管理条目：进度条独占一行 */
+  .mm-item { flex-wrap: wrap; align-items: flex-start; gap: 10px; }
+  .mm-info { flex: 1 1 100%; }
+  .mm-progress { width: 100%; }
+  .mm-right { min-width: 0; margin-left: auto; }
+  .mm-btn { padding: 0 14px; }
+
+  /* Key/端点表单行：控件纵排 */
+  .ep-key-row { flex-wrap: wrap; }
+  .ep-key-row select,
+  .ep-key-row input:not([type="checkbox"]) { flex: 1 1 100%; min-height: var(--m-tap); }
+
+  /* 提示词页：左列表（208px）→ 顶部横滑条目条 + 下方编辑器 */
+  .prompts-wrap { gap: 8px; }
+  .prompts-layout { flex-direction: column; }
+  .prompts-list {
+    width: 100%; flex: none; height: auto; max-height: 30vh;
+    border-right: none; border-bottom: 1px solid #232941;
+    padding: 0 0 8px;
+  }
+  .prompts-editor { flex: 1; min-height: 0; }
+  .prompts-editor-head { flex-wrap: wrap; gap: 6px; }
+  .prompts-actions { flex-wrap: wrap; }
+  .prompts-textarea { min-height: 220px; }
+  .prompt-btn { padding: 0 12px; }
+  .lessons-item { flex-wrap: wrap; }
+}
+
+/* ============================ 短剧工作台：骨架 ============================ */
+/* 平板档：左栏收窄，给工作区更多宽度。
+   **必须排在手机档之前**：两个断点会同时命中窄屏，后写的规则胜出。 */
+@media (max-width: 1024px) {
+  .drama-menu { width: 104px; padding: 10px 8px; }
+  .drama-menu button { padding: 11px 10px; font-size: 13px; }
+}
+
+/* 手机档把左栏 132px 主菜单改为**底部 tab 栏**（拇指区、常驻可见）。
+   用 position: fixed 让它脱离文档流，工作区自动铺满；父级补 padding-bottom
+   让内容不被压住（含 iPhone 底部安全区）。 */
+@media (max-width: 768px) {
+  /* 底部 tab 栏出现 → 底部弹层要让位（平板无底部条，保持 0） */
+  :root { --m-sheet-anchor: var(--m-bar-h); }
+  .drama { padding-bottom: calc(var(--m-bar-h) + var(--m-safe-bottom)); }
+  .drama-menu {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    width: auto; height: auto; flex-direction: row; gap: 4px;
+    padding: 6px calc(var(--m-gutter) + var(--m-safe-right))
+             calc(6px + var(--m-safe-bottom))
+             calc(var(--m-gutter) + var(--m-safe-left));
+    background: rgba(15, 18, 28, 0.96);
+    border-right: none; border-top: 1px solid #22263a;
+    backdrop-filter: blur(10px);
+  }
+  .drama-menu button {
+    flex: 1; text-align: center; font-size: 14px; padding: 0 4px;
+    min-height: var(--m-tap);
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 10px;
+  }
+  /* 当前项：底部 tab 用「药丸底色 + 蓝字」表达选中（左侧蓝条在横排里失效） */
+  .drama-menu button.on {
+    background: rgba(91, 140, 255, 0.14); color: #7da6ff; box-shadow: none;
+  }
+  .drama-menu button:hover { background: transparent; }
+  .drama-menu button.on:hover { background: rgba(91, 140, 255, 0.14); }
+
+  /* 工作台顶栏：项目名占满剩余宽度并省略，右侧「项目设置」保持可点 */
+  .drama > .app-header > span:not(.style-tag) {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+}
+
+/* ============================ 短剧：分集页（集列表 + 当前集工作台） ============================ */
+@media (max-width: 768px) {
+  /* 补充视角建议块（资产解析只提示、不生成）：手机档收边距、行内换行即可 */
+  .ep-view-hints { padding: 10px; gap: 6px; }
+  .ep-view-hint-row { row-gap: 2px; }
+  /* 左集列表（268px）→ 顶部横向卡片条：集号+集名+徽标一眼扫过，当前集高亮 */
+  .drama-stage { flex-direction: column; }
+  .ep-side {
+    width: 100%; flex: none;
+    border-right: none; border-bottom: 1px solid #22263a;
+  }
+  .ep-list { flex: none; }
+  .ep-list-head { padding: 10px var(--m-gutter) 6px; }
+  .ep-list-body {
+    display: flex; flex-direction: row; gap: 8px; flex: none;
+    overflow-x: auto; overflow-y: hidden;
+    padding: 0 var(--m-gutter) 10px;
+    scroll-snap-type: x proximity;
+    scroll-padding-left: var(--m-gutter);
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .ep-row {
+    flex: none; width: 168px; scroll-snap-align: start;
+    padding: 8px 10px; border-color: #22263a; background: #141826;
+    border-radius: 10px;
+  }
+  .ep-row.on { background: #1b2136; border-color: #5b8cff; }
+  .ep-title { -webkit-line-clamp: 2; font-size: 12.5px; }
+  /* 重新分集卡：横滑条的最后一张（与集卡同宽同高，不再单独占一行） */
+  .ep-list-body .ep-replan {
+    flex: none; width: 168px; margin-top: 0; padding: 8px 10px;
+    align-self: stretch; display: inline-flex;
+    align-items: center; justify-content: center; text-align: center;
+    font-size: 12.5px; line-height: 1.4;
+  }
+
+  /* 当前集工作台：手机档**整块隐藏集头部**——它显示的集名/字数/镜数/状态在
+     上方的集卡片条里一个不少（当前集卡片还是高亮的），保留它等于同一页重复两层标题。
+     任务进度另有步骤条上方的任务条（.ep-taskbar）承担。 */
+  .ep-ws-head { display: none; }
+  .ep-ws-title { font-size: 15px; }
+  .ep-ws-head-l1 { gap: 8px; }
+  .ep-ws-body { padding: 12px var(--m-gutter) 16px; gap: 11px; }
+
+  /* 步骤条：四步在小屏内保持一行（字号与内边距同步收窄，不横向滚动） */
+  .ep-stepper { padding: 10px 2px 8px; }
+  .ep-step { padding: 0 2px; gap: 2px; }
+  .ep-step-dot { width: 24px; height: 24px; font-size: 12px; }
+  .ep-step:not(:last-child)::after {
+    top: 12px; left: calc(50% + 18px); right: calc(-50% + 18px);
+  }
+  .ep-step-lb { font-size: 12px; }
+  .ep-step-ms { font-size: 10.5px; white-space: nowrap; }
+
+  .ep-pane { padding: 12px; }
+  .ep-audit-head { gap: 8px; }
+  .ep-audit-head .ghost-btn { margin-left: 0; }
+  .ep-taskbar { flex-wrap: wrap; }
+  .ep-taskbar-pct { margin-left: 0; }
+
+  /* 审核问题条目：位置/类型标签换行不再挤压描述 */
+  .ep-audit-issue-head { row-gap: 4px; }
+  .ep-audit-patch { margin-left: 0; }
+  .ep-audit-actions { gap: 8px; }
+}
+
+/* ============================ 短剧：剧本页 ============================ */
+/* 平板档也要堆叠：剧本页右栏本身只有 320px（`minmax(320px, 28%)`），
+   观测窗里再放 250px 的步骤栏 + 思考栏两列，思考区只剩几十像素 */
+@media (max-width: 1024px) {
+  .trace-body { flex-direction: column; gap: 10px; }
+  .trace-steps { width: 100%; max-height: 200px; }
+  .trace-thought-list { max-height: 240px; }
+}
+
+@media (max-width: 768px) {
+  /* 左编辑器 + 右解析栏 → 上下堆叠：编辑器占上半屏，解析/分集计划在下方，
+     整页纵向滚动（两栏在 390px 宽下都会被压成不可用） */
+  .scr { display: flex; flex-direction: column; overflow-y: auto; }
+  .scr-l {
+    flex: none; min-height: 58vh;
+    border-right: none; border-bottom: 1px solid #22263a;
+  }
+  .scr-ed { padding: 14px var(--m-gutter); font-size: 14px; line-height: 1.9; }
+  .scr-l .script-example,
+  .scr-l .script-notice,
+  .scr-l .script-versions { margin-left: var(--m-gutter); margin-right: var(--m-gutter); }
+  .scr-acts { padding: 10px var(--m-gutter); gap: 8px; }
+  /* 主操作（AI 解析 / 扩写 / 上传）按内容宽度并排，放不下自动换行 */
+  .scr-acts .parse-btn { padding: 0 16px; }
+  .scr-r { flex: none; }
+  .scr-proc { padding: 12px var(--m-gutter); overflow: visible; }
+  /* 分集计划：不再占 42vh 固定上限，随内容自然展开（整页滚动） */
+  .planbox { max-height: none; }
+  .planbox-b { overflow: visible; padding: 0 var(--m-gutter) 12px; }
+  .trace-body { padding: 12px var(--m-gutter); }
+  /* 思考条目折叠头是整行按钮（不是条目里的小控件），单独给触摸尺寸 */
+  .trace-thought-head { min-height: var(--m-tap-compact); }
+}
+
+/* ============================ 短剧：资产页 ============================ */
+@media (max-width: 768px) {
+  .ast-tabs {
+    padding: 10px var(--m-gutter) 0; gap: 4px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+  }
+  .ast-tabs button { flex: none; white-space: nowrap; min-height: var(--m-tap); padding: 0 14px; }
+  .ast-body { padding: 12px var(--m-gutter) calc(20px + var(--m-safe-bottom)); }
+  .ast-hint { font-size: 12px; }
+  .card-flow { gap: 10px; }
+  .asset-card { width: 100%; }
+  .drama .asset-thumb { height: 220px; }
+  .asset-footer { gap: 8px; }
+  .asset-footer button { min-height: var(--m-tap-compact); }
+  /* 触摸端下拉：可点区域 ≥40px、字号 ≥16px（避免 iOS 聚焦缩放） */
+  .cand-count { font-size: 13px; }
+  .cand-count select { min-height: var(--m-tap-compact); font-size: 16px; }
+  /* 三视图/补充视角的缩略图行：窄屏三张并排会太窄——改成等分铺开、按钮给足
+     触摸高度（背面/侧面各有一张图 + 一个按钮） */
+  .extra-view-grid { gap: 6px; }
+  .extra-view-item { min-width: 0; }
+  .extra-view-item .vp-edit-btn { min-height: var(--m-tap-compact); }
+  /* 手机档四格改成两行两列（一行四张会看不清全身），框高略降 */
+  .three-view-thumb { height: 108px; }
+  .three-view-grid .extra-view-item { flex: 1 1 44%; }
+  .asset-name-input { width: 100%; min-height: var(--m-tap-compact); }
+
+  /* 孤儿产物（25 号 2.5）：窄屏整行堆叠——缩略图铺满宽，下载按钮给足拇指尺寸 */
+  .orphan-item { flex-wrap: wrap; gap: 8px; }
+  .orphan-thumb { width: 100%; height: 150px; }
+  .orphan-meta { flex: 1 1 100%; }
+  .orphan-dl {
+    flex: 1 1 100%; display: inline-flex; align-items: center;
+    justify-content: center; min-height: var(--m-tap);
+  }
+}
+
+/* ============================ 短剧：故事板（分镜卡 / 画布视图） ============================ */
+/* 平板档就要堆叠：左栏 168px 资产条 + 右栏 380px 预览器 + 主菜单 104px + 集列表
+   268px 合计超过 834px 屏宽，卡片流会被压成一条缝（实测卡片区宽度≈0，分镜全看不见）。
+   卡片流是这个页面的主视图，必须拿到整宽 → 资产条改横滑条、预览器改底部弹层。 */
+@media (max-width: 1024px) {
+  /* 顶栏：标题单行省略，动作条整排可横滑（批量生成/合成/下载一个都不少） */
+  .storyboard { gap: 8px; }
+  .sb-topbar { gap: 8px; }
+  .sb-actions {
+    margin-left: 0; width: 100%; flex-wrap: nowrap; gap: 8px;
+    overflow-x: auto; overflow-y: hidden; padding-bottom: 4px;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .sb-actions::-webkit-scrollbar { display: none; }
+  .sb-actions > * { flex: none; }
+  .sb-actions .sb-btn { min-height: var(--m-tap-mid); padding: 0 14px; }
+  /* 下载菜单：工具条是横向滚动条（overflow-x:auto + overflow-y:hidden），会把菜单
+     整块裁掉——实测点「下载▾」屏幕上什么都不出现。手机档改成**固定在底部的动作弹层**：
+     position:fixed 不受滚动容器裁剪，落点也贴着拇指。 */
+  .sb-dl-menu {
+    position: fixed; left: var(--m-gutter); right: var(--m-gutter);
+    top: auto; bottom: calc(var(--m-sheet-anchor) + var(--m-safe-bottom) + 10px);
+    min-width: 0; max-width: none;
+    border-radius: 14px; padding: 6px;
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
+  }
+  .sb-dl-menu button {
+    justify-content: flex-start; text-align: left;
+    padding: 0 12px; min-height: var(--m-tap-mid);
+  }
+
+  /* 三栏（资产栏 / 卡片流 / 预览）→ 纵向：定位条 + 卡片流（主）+ 预览弹层 */
+  .sb-main { flex-direction: column; gap: 8px; }
+  /* 资产定位栏：竖列表 → 顶部横滑缩略图条（点按仍可定位分镜） */
+  .sb-rail {
+    width: 100%; flex: none; display: flex; flex-direction: row;
+    align-items: center; gap: 6px; padding: 6px;
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+  .sb-rail::-webkit-scrollbar { display: none; }
+  .sb-cards::-webkit-scrollbar { display: none; }
+  .sb-rail-title { flex: none; margin: 0 2px; white-space: nowrap; }
+  .sb-rail .rail-empty { flex: none; padding: 0 4px; }
+  .rail-item { flex: none; width: auto; margin-bottom: 0; min-height: var(--m-tap-compact); }
+  .rail-name { max-width: 84px; }
+  /* 分镜卡：窄屏 = 纵向单列 + **整页滚动**（卡片不再有内层滚动窗口）。
+     两次实测教训：
+     1) 横向卡片流配 `max-height: 100%` 时，卡片被压到容器高度，卡内弹性区
+        （视频画面描述 .shot-vp = flex:1 + min-height:0）被挤成 0 高度、首帧图溢出卡外；
+     2) 改纵向但仍让卡片列表自己滚时，可视窗口只有 ~342px，而单卡内容常有 1000px+
+        （画面描述本身就 600-700px）——在内层滚永远只能看到卡片局部，「看不到全貌」。
+     现在的做法：工作区（.ep-ws-body）作为唯一滚动容器，卡片按内容自然高度铺开，
+     工具条吸顶（批量生成/合成随时可点），底部给预览弹层留出让位。 */
+  .ep-ws-body.no-scroll { overflow-y: auto; padding-top: 0; }
+  .ep-ws-storyboard { flex: none; }
+  /* 注意：**不要**覆盖 .storyboard 的 flex（基线是 `flex: 1; min-width: 0`）。
+     改成 flex: none 会让它按 max-content 计算宽度——实测撑到 2753px（被里面不换行的
+     工具条撑开），整条卡片流跟着变宽。宽度交给 flex:1 + min-width:0 收口即可。 */
+  .sb-topbar {
+    /* z-index 要高于预览弹层（35）：工具条内部的「下载▾」弹层是它的子元素，
+       会被限制在这个层叠上下文里，否则会被预览弹层盖住 */
+    position: sticky; top: 0; z-index: 36;
+    background: #0f1117;                      /* 与页面同色，吸顶时不见「断层」 */
+    padding: 10px 0;
+  }
+  .sb-main { flex: none; }
+  .sb-cards {
+    flex: none; flex-direction: column; gap: 12px; align-items: stretch;
+    /* 横向防溢出但不产生滚动条（clip 不强制另一轴变 auto）；纵向交给整页滚动 */
+    overflow-x: clip; overflow-y: visible;
+    padding-bottom: calc(var(--m-preview-bar) + 16px);
+  }
+  .shot-card, .shot-add-card {
+    width: 100%; flex: none; max-height: none;
+    overflow: visible;
+  }
+  /* ---------- 分镜卡手风琴（窄屏） ----------
+     折叠：整张卡压成一行（缩略图 + 镜号 + 场景·时长 + 状态 + 箭头），56px 高；
+     展开：显示完整卡片内容。默认全收起，点行展开（同时选中该镜，右侧预览器跟着走）。
+     10 张全展开是 12000px 的滚动，折起来 10 行约 640px，一屏多就能扫完整集。 */
+  .shot-acc {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    min-height: 56px; padding: 0; margin: 0;
+    border: none; background: transparent; color: inherit;
+    font: inherit; text-align: left; cursor: pointer;
+  }
+  .shot-acc:active { opacity: 0.7; }
+  .shot-acc-thumb {
+    flex: none; width: 44px; height: 30px; border-radius: 6px; overflow: hidden;
+    background: #0f1117; display: inline-flex; align-items: center;
+    justify-content: center; color: #525a70; font-size: 10px;
+  }
+  .shot-acc-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .shot-acc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .shot-acc-title { font-size: 13px; font-weight: 600; color: #dbe2f0; }
+  .shot-acc-sub {
+    font-size: 11.5px; color: #8b93a7;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .shot-acc-chevron { flex: none; color: #5b8cff; font-size: 11px; }
+  /* 折叠态：隐藏正文，卡片退化成一行（去掉正文的纵向间距与内边距） */
+  .shot-card.acc:not(.acc-open) { padding: 0 12px; gap: 0; }
+  .shot-card.acc:not(.acc-open) .shot-acc-body { display: none; }
+  /* 展开态：头部与正文之间拉一条分隔线 */
+  .shot-card.acc-open .shot-acc {
+    border-bottom: 1px solid #22263a; margin-bottom: 10px; padding-bottom: 8px;
+  }
+  .shot-card { padding: 12px; }
+  .shot-vp { flex: none; }                    /* 自然高度：画面描述完整显示 */
+  .shot-vp .vp-view { min-height: 52px; }
+  .vp-editor textarea { min-height: 96px; }   /* 编辑态给足可写高度 */
+  .shot-desc { height: 72px; }
+  .shot-ff-media { height: 170px; }
+  .shot-add-card { min-height: 76px; }
+  .shot-video-btn, .shot-video-regen { min-height: var(--m-tap-mid); }
+  .sb-cards-empty { padding: 20px 12px; text-align: center; }
+  .sb-canvas { flex: 1; min-height: 300px; }
+  .sb-report { max-height: 34vh; }
+
+  /* 预览播放器：固定右栏在窄屏无处安放 → 底部弹层。
+     默认只露出标题条，点「展开」或选中带视频的分镜时自动展开（:has(video)），
+     用户手动收起后不再自动弹（.m-closed 优先级高于 :has）。 */
+  .sb-preview {
+    position: fixed; left: 0; right: 0;
+    bottom: calc(var(--m-sheet-anchor) + var(--m-safe-bottom));
+    z-index: 35; width: auto;
+    /* 52%：展开时顶端不会顶到吸顶工具条；用百分比而非 vh——老内核里 100vh 是
+       「地址栏收起后」的大视口，会让面板高过可视区、标题条被顶出屏幕 */
+    max-height: 52%;
+    border-radius: var(--m-sheet-radius) var(--m-sheet-radius) 0 0;
+    border-bottom: none;
+    /* 上内边距为 0：收起时露出的高度必须精确等于标题条高度 */
+    padding: 0 var(--m-gutter) calc(10px + var(--m-safe-bottom));
+    transform: translateY(calc(100% - var(--m-preview-bar)));
+    transition: transform 0.24s var(--m-ease);
+    box-shadow: 0 -8px 26px rgba(0, 0, 0, 0.42);
+    overscroll-behavior: contain;
+  }
+  .sb-preview:has(video),
+  .sb-preview.m-open { transform: none; }
+  .sb-preview.m-closed { transform: translateY(calc(100% - var(--m-preview-bar))); }
+  .sb-preview-title { min-height: var(--m-preview-bar); gap: 8px; }
+  .sb-preview-title .ghost-btn { min-height: var(--m-tap-compact); }
+  /* 标题整条是开关：给出可点反馈（.tappable 由 JSX 在手机档加上） */
+  .sb-preview-title.tappable { cursor: pointer; }
+  .sb-preview-title.tappable:active { opacity: 0.7; }
+  .sb-preview-toggle { margin-left: auto; pointer-events: none; }
+  /* 收起态：只留标题条可点，面板其余部分（还压在屏幕下方、被底栏挡住的那截）
+     一律不吃点击——否则手指落点稍有偏差就会点到底下的卡片 */
+  .sb-preview.m-closed > *:not(.sb-preview-title) { pointer-events: none; }
+  .sb-player { min-height: 0; }
+
+  /* 审片裁决 / 重拍表单：窄屏换行不挤压 */
+  .sb-review-row { row-gap: 6px; }
+  .sb-verdicts { margin-left: 0; }
+  .sb-retake-note { min-width: 0; flex: 1 1 100%; min-height: var(--m-tap); }
+  .sb-batch-main { flex-wrap: wrap; row-gap: 6px; }
+  /* 多选原因 chips：触摸端给足可点尺寸 */
+  .sb-retake-chip { min-height: var(--m-tap-compact); display: inline-flex; align-items: center; }
+}
+
+@media (max-width: 768px) {
+  /* 手机档：首帧给大一点（单列铺满宽，能看清画面），其余沿用窄屏规则 */
+  .shot-ff-media { height: 190px; }
+  /* 首帧候选弹窗：手机两列、图更高（挑脸靠它，太小看不清） */
+  .ff-cand-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ff-cand-item { min-height: var(--m-tap); }
+  .ff-cand-item img { height: 132px; }
+  .ff-cand-dialog .prompt-opt-foot .fb-btn { min-height: var(--m-tap); }
+  /* 顶栏「首帧 N 张」：触摸端给足高度、字号 16px（防 iOS 聚焦放大） */
+  .sb-ffcount select { min-height: var(--m-tap-compact); font-size: 16px; }
+  .shot-desc { height: 76px; }
+  .sb-player video { max-height: 34vh; }
+  .sb-preview-desc { font-size: 12px; }
+  .sb-cards-empty { padding: 0 12px 20px; }
+
+  /* 重摇原因弹窗（25 号 2.4）：手机档单列（两列在 390px 上文字挤成两行）、
+     选项给足 44px、备注框 16px（iOS 上小于 16px 聚焦会整页放大） */
+  .roll-reason-dialog { height: auto; }
+  .roll-reason-list { grid-template-columns: 1fr; gap: 8px; }
+  .roll-reason-item { min-height: var(--m-tap); padding: 10px 12px; }
+  .roll-reason-hint { font-size: 12px; }
+  .roll-reason-note { font-size: 16px; min-height: var(--m-tap); }
+  /* 底部：提示独占一行、两个按钮各占一半（实测 390px 下「取消/提交重出」被
+     挤成两行、提示也折成两行） */
+  .roll-reason-dialog .prompt-opt-foot { flex-wrap: wrap; row-gap: 8px; }
+  .roll-reason-dialog .prompt-opt-hint { flex: 1 1 100%; }
+  .roll-reason-dialog .prompt-opt-foot .fb-btn {
+    flex: 1 1 40%; min-height: var(--m-tap);
+  }
+  /* 原因分布行：缩成两列但保证触摸高度 */
+  .sb-reason-row { min-height: var(--m-tap-compact); align-items: center; }
+  /* 重拍表单里两个下拉（原因 + 单变量）窄屏各占一行，不被压成窄条 */
+  .sb-retake-select { flex: 1 1 100%; min-height: var(--m-tap); }
+}
+
+/* ============================ 画布工作台 ============================ */
+/* 平板档：左右两栏（节点面板 172 + 对话 320）在 1024px 屏上占掉近半宽，
+   画布本体只剩 300-400px，比单个节点（264px）大不了多少 → 收窄两栏 */
+@media (max-width: 1024px) {
+  .palette { width: 148px; padding: 10px 8px; }
+  .chat-panel { width: 264px; }
+  .chat-handle { width: 24px; letter-spacing: 4px; font-size: 11px; }
+}
+
+@media (max-width: 768px) {
+  /* 左栏节点面板（172px）/ 右栏对话（320px）在手机上让位给画布本体：
+     两者都改为浮层，用画布右下角的悬浮按钮唤出；画布独占整屏 */
+  .canvas-layout { padding-bottom: calc(var(--m-nav-h) + var(--m-safe-bottom)); }
+
+  /* 节点面板 → 底部弹层（默认收起在屏幕外） */
+  .palette {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 46;
+    width: auto; max-height: 66%; border-radius: var(--m-sheet-radius) var(--m-sheet-radius) 0 0;
+    border-right: none; border-top: 1px solid #22263a;
+    padding: 12px calc(var(--m-gutter) + var(--m-safe-right))
+             calc(16px + var(--m-safe-bottom))
+             calc(var(--m-gutter) + var(--m-safe-left));
+    transform: translateY(101%);
+    transition: transform 0.26s var(--m-ease);
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.45);
+    overscroll-behavior: contain;
+  }
+  .palette.m-open { transform: none; }
+  .palette-item { min-height: var(--m-tap); font-size: 14px; }
+  .palette-tabs button { min-height: var(--m-tap-compact); font-size: 13px; }
+  .asset-item { min-height: 56px; }
+  .assets-search { min-height: var(--m-tap); }
+
+  /* 底部导航栏（复刻小云雀的那排）：钉在屏幕底部整条横滑 */
+  .bottom-nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 36;
+    transform: none; justify-content: flex-start; gap: 2px;
+    padding: 5px calc(var(--m-gutter) + var(--m-safe-right))
+             calc(5px + var(--m-safe-bottom))
+             calc(var(--m-gutter) + var(--m-safe-left));
+    border-radius: 0; border-left: none; border-right: none;
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+  .bottom-nav::-webkit-scrollbar { display: none; }
+  .bottom-nav button { flex: none; min-height: var(--m-tap-compact); padding: 0 11px; }
+  .zoom-display { flex: none; padding: 0 4px; }
+  .ws-dot { margin: 0 2px; }
+
+  /* 顶栏工具按钮：整排横滑 */
+  .toolbar {
+    padding: 8px var(--m-gutter); gap: 8px;
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .toolbar::-webkit-scrollbar { display: none; }
+  .toolbar button { flex: none; min-height: var(--m-tap-compact); padding: 0 14px; }
+
+  /* 对话面板 → 全屏浮层（键盘弹起时输入区仍在底部，消息区自适应） */
+  .chat-panel {
+    position: fixed; inset: 0; z-index: 47; width: auto;
+    border-left: none; border-right: none;
+    padding-top: var(--m-safe-top);
+    padding-bottom: var(--m-safe-bottom);
+  }
+  .chat-header { padding: 8px var(--m-gutter); }
+  .chat-tab { min-height: var(--m-tap-compact); max-width: 132px; }
+  .chat-header-actions button { min-height: var(--m-tap-compact); padding: 0 10px; }
+  /* 全屏浮层下「靠左/靠右」无从体现（见 ChatPanel 的 chat-side-toggle） */
+  .chat-side-toggle { display: none; }
+  .chat-input-area { padding: 10px var(--m-gutter) calc(10px + var(--m-safe-bottom)); }
+  .chat-input-wrap textarea { min-height: 56px; font-size: 16px; }
+  .chat-input-wrap .mention-picker { width: auto; left: 0; right: 0; }
+  .chat-mention-btn { width: var(--m-tap); min-height: var(--m-tap); }
+  .chat-send-btn { min-height: var(--m-tap); }
+  .chat-bubble { max-width: 86%; font-size: 14px; }
+  .chat-plan-actions button { min-height: var(--m-tap); }
+
+  /* 收起态的对话把手 → 悬浮按钮（与节点面板按钮竖向叠放在右下角） */
+  .chat-handle {
+    position: fixed;
+    right: calc(14px + var(--m-safe-right));
+    bottom: calc(var(--m-nav-h) + var(--m-safe-bottom) + 66px);
+    z-index: 45;
+    width: auto; height: auto; min-height: var(--m-tap);
+    padding: 0 18px; border-radius: 999px;
+    writing-mode: horizontal-tb; letter-spacing: 0; font-size: 14px;
+    background: rgba(20, 24, 38, 0.94); color: #dbe2f0;
+    border: 1px solid #2a3049;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(8px);
+  }
+
+  /* 长按菜单：手机端常驻浮层有底部导航条（36）与悬浮按钮（45），
+     菜单原本 z=31 会被它们盖住（贴近底部长按即可复现）→ 抬到 55/54 */
+  .context-mask { z-index: 54; }
+  .context-menu { z-index: 55; }
+
+  /* 右键菜单：触摸端点按目标 ≥44px、不许溢出屏幕 */
+  .context-menu {
+    min-width: 168px; max-width: calc(100vw - 20px);
+    max-height: 68%; overflow-y: auto;
+  }
+  .context-menu button { min-height: var(--m-tap); font-size: 14px; }
+  .context-menu button:disabled { min-height: var(--m-tap); }
+  .context-submenu { max-height: 32vh; }
+  .context-submenu button { min-height: var(--m-tap-compact); }
+
+  /* 多选浮动条：让开底部导航栏 */
+  .multiselect-bar { bottom: calc(var(--m-nav-h) + var(--m-safe-bottom) + 10px); }
+  .multiselect-bar button { min-height: var(--m-tap); }
+
+  /* 节点内 @选择器与放大编辑 */
+  .mention-picker { width: min(230px, 72vw); }
+  .mention-item { min-height: var(--m-tap); }
+  .node-error { font-size: 12px; }
+}
+
+/* ============================ 移动端专用元素与工具类 ============================ */
+/* .m-only：仅在手机档出现的元素（桌面端 display:none，不参与布局与无障碍树）。
+   .m-backdrop：弹层遮罩，点按关闭。 */
+.m-only,
+.m-backdrop,
+.canvas-fab { display: none; }
+/* 加固：.m-only 是「桌面隐藏」工具类，必须压过组件自身的 display 规则。
+   写成 .m-only.m-only（0-2-0）是因为 styles.css 里按控件统一写的 :is(...) 组
+   权重是 0-1-1，会压过单类名（实测 PC 上「收起」按钮就这么漏出来过）。 */
+.m-only.m-only { display: none; }
+
+@media (max-width: 1024px) {
+  /* 故事板预览弹层在平板档就已启用，展开/收起提示这一档就要可见。
+     选择器写成 .m-only.m-only：与上面那条加固规则的权重对齐（0-2-0），
+     否则加固规则会连移动端一起隐藏掉（实测提示文字不显示）。 */
+  .m-only.m-only {
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .m-backdrop {
+    display: block; position: fixed; inset: 0; z-index: 44;
+    background: rgba(6, 8, 14, 0.55);
+    animation: m-fade-in 0.18s var(--m-ease) both;
+  }
+  /* 画布右下角悬浮按钮：面板唤出入口（节点面板） */
+  .canvas-fab {
+    display: inline-flex; align-items: center; justify-content: center;
+    position: fixed;
+    right: calc(14px + var(--m-safe-right));
+    bottom: calc(var(--m-nav-h) + var(--m-safe-bottom) + 12px);
+    z-index: 45;
+    min-height: var(--m-tap); padding: 0 20px;
+    border: none; border-radius: 999px; cursor: pointer;
+    background: linear-gradient(135deg, #5b8cff, #7c5bff); color: #fff;
+    font-size: 14px; font-weight: 600;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  }
+  .canvas-fab:active { opacity: 0.85; }
+}
+
+@keyframes m-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ============================ 项目工作台：过场与骨架 ============================ */
+@media (max-width: 768px) {
+  .app-header {
+    height: 48px; padding: 0 var(--m-gutter); gap: 10px;
+    height: calc(48px + var(--m-safe-top));
+    padding-top: var(--m-safe-top);
+  }
+  .project-loading, .project-missing { padding: 0 var(--m-gutter); text-align: center; }
+}
+
+/* ============================ 触摸端补漏（不受屏宽影响） ============================ */
+@media (pointer: coarse) {
+  /* 复选框在触摸端加宽（外观规则已上移到 styles.css，PC 共用一套） */
+  input[type="checkbox"] { --ctl-check: 18px; }   /* 触摸端比桌面大一档，点按区由外层 label 撑到 40px+ */
+  .ep-audit-pick,
+  .map-ep,
+  .admin-check,
+  .episode-check,
+  .project-settings-check {
+    min-height: var(--m-tap-compact);
+    align-items: center;
+  }
+  /* 双击改名 / 双击复制报错：不禁用双击缩放的话，iOS 会把双击吃掉当缩放用 */
+  .asset-name-text,
+  .node-error {
+    touch-action: manipulation;
+  }
+}
+
+/* 触摸端：这两处 hover 只改 transform，粘住后元素会一直「浮着」 */
+@media (hover: none) {
+  .color-dot:hover { transform: none; }
+  .login-form button:hover:not(:disabled) { transform: none; }
+}
+
+/* ============================ 手机档：弹窗可滚与窄行排版 ============================ */
+@media (max-width: 768px) {
+  /* 弹窗高度：桌面 `.settings-dialog` 定高 640px，而新建/项目设置弹窗的内容容器
+     （.project-settings-body）没有 overflow — 短剧模式（画风/锚点/画幅/分辨率/
+     国家/3 个模型选择器）内容超过 640px 时，「创建项目」会被裁掉且滚不动
+     —— 手机上等于无法新建短剧项目。改为高度自适应 + 内容容器独立滚动。 */
+  .settings-dialog { height: auto; }
+  .project-settings-body {
+    flex: 1; min-height: 0; overflow-y: auto;
+    padding: 14px var(--m-gutter) 16px;
+    overscroll-behavior: contain;
+  }
+  /* 底部弹层的操作行固定在弹层底部（内容滚动时按钮不跟着滚走） */
+  .settings-dialog > .prompt-opt-foot { flex: none; }
+
+  /* 预检/审片报告与批次明细：左侧标签 flex-shrink:0，把说明文字挤成一字一行 */
+  .sb-report-issue { flex-wrap: wrap; }
+  .sb-report-issue .issue-msg { flex: 1 1 100%; }
+  .sb-batch-row { flex-wrap: wrap; }
+  .sb-batch-row .sb-batch-err { flex: 1 1 100%; }
+
+  /* 分集计划行（第 N 集 / 集名 / 字数 / 进入）：4 个元素挤一行会把集名压扁 */
+  .prow-head { flex-wrap: wrap; }
+  .prow-title { max-width: 100%; }
+  .prow-meta { margin-left: 0; }
+
+  /* 分镜卡妆容行：名称列太窄会截断，给下拉让出可点宽度 */
+  .shot-costume-name { max-width: none; flex: 0 1 auto; white-space: normal; }
+  .shot-costume select { min-height: var(--m-tap-compact); }
+
+  /* 新增分镜卡与空态提示 */
+  .sb-cards-empty { padding: 0 12px; text-align: center; }
+
+  /* 正文可读性：手机上主要阅读块原来沿用桌面的 12px（实测），屏幕更小、距离更近，
+     抬一档到 13.5px；小标签同步 11→12px。输入类控件不动（保持 16px 防 iOS 聚焦放大）。 */
+  .vp-view, .vp-preview { font-size: 13.5px; }
+  .shot-label, .asset-label, .shot-camera, .sb-badge { font-size: 12px; }
+  .asset-text, .ep-ws-beats { font-size: 13px; }
+  .ep-audit-desc, .ep-audit-suggest { font-size: 13.5px; }
+}
+
+/* ============================ 超小屏（≤520px，小屏手机竖屏） ============================ */
+/* 320-520px 一档：这一档要压的是「装饰与字号」，布局层次已在手机档定型 */
+@media (max-width: 520px) {
+  .home-hero { padding: 20px 0 12px; }
+  .home-hero h1 { font-size: 22px; }
+  .pc-cover { height: 104px; }
+  /* 工作台顶栏：项目名之外的标签在最窄屏让位（风格/版本在项目设置里可见） */
+  .app-header .style-tag { display: none; }
+  .drama-menu button { font-size: 13px; }
+  .ep-ws-title { font-size: 14px; }
+  .ep-step-lb { font-size: 11px; }
+  .ep-step-ms { font-size: 10px; }
+  .login-card { padding: 24px 18px 22px; }
+  .fb-dialog { padding-left: var(--m-gutter); padding-right: var(--m-gutter); }
+  .sb-preview-title { font-size: 12px; }
+  .context-menu { min-width: 152px; }
+}
+
+/* ---------- 错误边界界面（crash-screen）：窄屏收紧内边距 ---------- */
+@media (max-width: 768px) {
+  .crash-screen { padding: 16px; align-items: flex-start; }
+  .crash-card { padding: 18px; }
+  .crash-actions button { min-height: 44px; }
+}
+
+/* 场景组弹窗（32 号）：触摸端输入放大防聚焦缩放、母版卡给足可点尺寸 */
+@media (max-width: 768px) {
+  .sg-dialog { width: 100%; }
+  .sg-input { font-size: 16px; min-height: var(--m-tap); }
+  .sg-member { width: 84px; min-height: var(--m-tap); }
+}
+
+/* 场景组多选式编组（32 号交互优化）：勾选行 / 组 chips 给足可点尺寸，
+   场景列表限高避免弹窗在手机上过高（列表内部滚动） */
+@media (pointer: coarse) {
+  .sg-row { min-height: var(--m-tap); }
+  .sg-chip { min-height: var(--m-tap); display: inline-flex; align-items: center; }
+  .sg-scenes { max-height: 40vh; padding: 4px; }
+}
+
+/* 积分计费（33 号方案）：顶栏余额 / 消耗徽标 / 「我的积分」页。
+   宽断点在前、窄断点在后（24 号规则）；触摸端给足可点尺寸。 */
+@media (max-width: 1024px) {
+  .credits-main { width: 100%; max-width: 100%; padding: 16px var(--m-gutter) 72px; }
+}
+
+@media (max-width: 768px) {
+  .credits-main { padding: 12px var(--m-gutter) 80px; gap: 12px; }
+  .credits-balance-card { padding: 20px 16px; }
+  .credits-balance-num { font-size: 34px; }
+  .credits-redeem, .credits-txns { padding: 14px var(--m-gutter); }
+  /* 兑换输入框 16px：iOS 聚焦不自动放大（全局硬约定） */
+  .credits-redeem-row input { font-size: 16px; min-height: var(--m-tap); }
+  .credits-redeem-row { flex-wrap: wrap; }
+  .credits-redeem-row .gen-btn { flex: 1 1 100%; }
+  /* 明细行：说明与金额上下排，避免挤压截断 */
+  .credits-txn { flex-wrap: wrap; gap: 4px; }
+  .credits-txn-side { align-items: flex-start; flex-direction: row; gap: 8px; }
+}
+
+@media (pointer: coarse) {
+  /* 顶栏余额徽标给足触摸高度（工作台 header 与首页共用） */
+  .credit-balance { min-height: var(--m-tap-mid); padding: 0 14px; }
+  .credits-more { min-height: var(--m-tap); }
+}
+
+/* 积分计费管理页签（33 号方案）：窄屏下价目/流水表横向滚动、工具行可换行 */
+@media (max-width: 768px) {
+  .billing-toolbar { align-items: stretch; }
+  .billing-search { min-width: 100%; }
+  .billing-note-input { width: 100%; }
+  .billing-table-wrap { border-radius: 8px; }
+  .billing-table th, .billing-table td { padding: 7px 8px; }
+  .billing-credit-input { width: 64px; }
+  .billing-setting-row { flex-wrap: wrap; }
+}
+
+/* 价目表单价组（按用量）：窄屏换行、输入框给足触摸高度 */
+@media (pointer: coarse) {
+  .billing-price-group input { min-height: var(--m-tap-compact); width: 58px; font-size: 16px; }
+  .billing-mode-select { min-height: var(--m-tap-compact); font-size: 16px; }
+}
+
+/* 模型端点计费费率：触摸端输入给足高度与字号（防 iOS 聚焦放大） */
+@media (pointer: coarse) {
+  .ep-bill-row input[type="number"] { min-height: var(--m-tap-compact); font-size: 16px; width: 84px; }
+  .ep-bill-row { gap: 10px; }
+}

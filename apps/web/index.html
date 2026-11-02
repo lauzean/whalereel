@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover：允许内容铺进刘海/圆角区域，安全区由 CSS 的
+         env(safe-area-inset-*) 消化（移动端底部 tab 栏与弹层需要）。
+         不设 maximum-scale/user-scalable：保留双指缩放（可访问性要求）。
+         interactive-widget=resizes-content：安卓软键盘弹出时压缩布局高度，
+         全屏定高工作台（聊天输入、画布）不会被键盘盖住。 -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <meta name="theme-color" content="#0f1117" />
+    <meta name="apple-mobile-web-app-title" content="鲸影" />
+    <!-- 站点图标：品牌鲸鱼标记（public/brand/ 下的白底方形版，四档尺寸） -->
+    <link rel="icon" type="image/png" href="/brand/logo-192.png" sizes="192x192" />
+    <link rel="icon" type="image/png" href="/brand/favicon-32.png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
+    <title>鲸影视频创作工作台</title>
+    <style>
+      html, body, #root { height: 100%; margin: 0; }
+      body { font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; background: #0f1117; }
+      /* 触摸端：双击缩放延迟（300ms）与长按选中/高亮方块会拖慢手感，
+         全局收敛为「操作型」交互；文字仍可长按选中 */
+      @media (pointer: coarse) {
+        button, a, label, summary, select { touch-action: manipulation; }
+        button, a { -webkit-tap-highlight-color: transparent; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

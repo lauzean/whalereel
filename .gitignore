@@ -1,0 +1,36 @@
+# 运行期数据（SQLite + 产物 + 缓存）
+server/data/
+models/
+server/models/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# 本地环境配置（含密钥，勿提交；模板见 server/.env.example）
+server/.env
+.env
+
+# 前端
+node_modules/
+dist/
+*.tsbuildinfo
+
+# IDE 与系统文件
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
+
+# 内部资料（不随开源仓库发布）
+docs/
+scripts/
+AGENTS.md
+CLAUDE.md
+server/_*.py
+server/test_real_parse.py
+server/test_short_parse.py
