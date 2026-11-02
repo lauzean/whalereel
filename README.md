@@ -109,7 +109,7 @@ Mock mode produces placeholder images and videos, which is enough to validate th
 There are two options:
 
 1. Copy `server/.env.example` to `server/.env` and fill in the values.
-2. Sign in and open **系统管理 → 模型服务** (System → Model Services) to add keys and endpoints in the UI.
+2. Sign in and open **System → Model Services** to add keys and endpoints in the UI.
 
 Each task type has its own provider configuration:
 
