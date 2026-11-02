@@ -1,29 +1,35 @@
-# 第三方代码与许可说明
+# Third-Party Code and Licenses
 
-本项目的自有代码以根目录 [LICENSE](LICENSE) 中的 MIT 许可证发布。
-以下文件包含第三方代码或由其改编而来，分别遵循原始许可证；相关版权与许可头已保留在源文件中。
+The project's own code is released under the MIT License in the root [LICENSE](LICENSE).
+The files below contain third-party code or are derived from it. Their original
+copyright and license headers are retained in the source files.
 
-## React Bits — Aurora 背景组件
+## React Bits — Aurora background component
 
-- 文件：`apps/web/src/ui/Aurora.tsx`
-- 来源：React Bits 注册表 `@reactbits/Aurora-TS-CSS`
-- 许可证：MIT + Commons Clause License Condition v1.0
-- 版权：Copyright (c) 2026 David Haz
+- File: `apps/web/src/ui/Aurora.tsx`
+- Source: React Bits registry `@reactbits/Aurora-TS-CSS`
+- License: MIT + Commons Clause License Condition v1.0
+- Copyright: Copyright (c) 2026 David Haz
 
-本项目将 Aurora 组件作为应用界面的一部分使用。Commons Clause 限制的是单独销售、再许可或 redistributing 组件本身；如需把该组件单独抽出作为组件库分发，请先阅读 React Bits 的完整许可条款。
+This project uses the Aurora component as part of the application UI. The
+Commons Clause restricts selling, sublicensing, or redistributing the component
+itself; if you want to extract it as a standalone component library, read the
+full React Bits license first.
 
-## HiDream-O1-Image 推理代码
+## HiDream-O1-Image inference code
 
-- 目录：`server/app/inference/hidream_o1/`
-- 来源：<https://github.com/HiDream-ai/HiDream-O1-Image>
-- 许可证：MIT License
-- 版权：Copyright (c) 2026 HiDream.ai
+- Directory: `server/app/inference/hidream_o1/`
+- Source: <https://github.com/HiDream-ai/HiDream-O1-Image>
+- License: MIT License
+- Copyright: Copyright (c) 2026 HiDream.ai
 
-其中 `pipeline.py`、`utils.py`、`runtime.py` 等文件来自或改编自 HiDream-O1 官方推理实现，并包含为适配当前 transformers 版本所做的本地补丁。
+Files such as `pipeline.py`, `utils.py`, and `runtime.py` come from or are
+adapted from the official HiDream-O1 inference implementation, with local
+patches for the current transformers version.
 
-## HuggingFace Diffusers / Qwen / Alibaba Wan 相关文件
+## HuggingFace Diffusers / Qwen / Alibaba Wan files
 
-以下文件保留原始版权与 Apache-2.0 许可头：
+The following files retain their original copyright and Apache-2.0 headers:
 
 - `server/app/inference/hidream_o1/flash_scheduler.py`
   - Copyright 2024 Stability AI, Katherine Crowson and The HuggingFace Team
@@ -32,10 +38,13 @@
   - Copyright 2025 The Qwen Team and The HuggingFace Inc. team
   - Apache License 2.0
 - `server/app/inference/hidream_o1/fm_solvers_unipc.py`
-  - 改编自 HuggingFace Diffusers `scheduling_unipc_multistep.py`
+  - Adapted from HuggingFace Diffusers `scheduling_unipc_multistep.py`
   - Copyright 2024-2025 The Alibaba Wan Team Authors
   - Apache License 2.0
 
-## 前端依赖
+## Frontend dependencies
 
-`apps/web/package.json` 与 `apps/web/package-lock.json` 中列出的 npm 依赖由各自的作者维护，许可证以各依赖包内的 LICENSE 文件为准（主要包括 MIT、ISC、Apache-2.0、BSD-3-Clause 等）。
+The npm dependencies listed in `apps/web/package.json` and
+`apps/web/package-lock.json` are maintained by their respective authors. See
+the LICENSE file inside each package for its terms (mainly MIT, ISC,
+Apache-2.0, and BSD-3-Clause).

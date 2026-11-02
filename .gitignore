@@ -1,4 +1,4 @@
-# 运行期数据（SQLite + 产物 + 缓存）
+# Runtime data (SQLite, generated artifacts, cache)
 server/data/
 models/
 server/models/
@@ -10,23 +10,23 @@ __pycache__/
 venv/
 *.egg-info/
 
-# 本地环境配置（含密钥，勿提交；模板见 server/.env.example）
+# Local environment config (contains keys; never commit; template: server/.env.example)
 server/.env
 .env
 
-# 前端
+# Frontend
 node_modules/
 dist/
 *.tsbuildinfo
 
-# IDE 与系统文件
+# IDE and OS files
 .idea/
 .vscode/
 .DS_Store
 Thumbs.db
 *.log
 
-# 内部资料（不随开源仓库发布）
+# Internal-only material (not published in this repository)
 docs/
 scripts/
 AGENTS.md

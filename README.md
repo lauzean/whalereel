@@ -1,60 +1,60 @@
-# 鲸影 WhaleReel
+# WhaleReel
 
 <img src="apps/web/public/brand/logo.png" width="88" alt="WhaleReel">
 
-无限画布 AI 视频创作工作台：把文本、图片、视频、音频放进一张可自由连线的画布，覆盖 AI 短剧/漫剧的剧本解析、逐集审核、资产提取、分镜、首帧、视频生成与合成全链路。
+An infinite-canvas AI video production workbench. Arrange text, images, video, and audio on a free-form canvas, and run the complete AI short-drama pipeline: script parsing, per-episode review, asset extraction, storyboarding, first-frame generation, video generation, review, and final composition.
 
-> 本仓库是开源代码版本，**不包含**内部设计文档（`docs/`）和本地运行数据。代码注释里出现的 `docs/design/...` 是内部设计文档编号，仅作历史说明。
+> This is the open-source code release. It does **not** include the internal design documents (`docs/`) or local runtime data. References to `docs/design/...` in code comments are internal document IDs kept for historical context.
 
-## 功能特性
+## Highlights
 
-- **无限画布**：节点化编排素材与生成任务，支持拖拽连线、分组、版本回溯；WebSocket 实时推送任务进度。
-- **短剧/漫剧流水线**：剧本解析 → 逐集审核 → 角色/场景/道具资产 → 分镜 → 首帧 → 视频 → 审片 → 合成导出。
-- **多模型服务端点**：OpenAI 兼容接口、火山方舟（Seedream/Seedance）、Vidu、ComfyUI 本地端点等；可在管理界面在线配置与探测模型列表，API Key 脱敏展示。
-- **本地推理（可选）**：支持 MiniMax H3、Wan 2.2、Flux.1、Qwen-Image 等本地模型的资源池调度；未安装推理依赖时可使用 mock 模式跑通全链路。
-- **多用户与数据隔离**：内置管理员账号，业务数据按 `owner_user_id` 隔离，越权访问统一返回 404。
-- **积分计费（可选）**：预扣/结算、按调用计费、失败自动退回。
-- **移动端适配**：桌面、平板、手机三档布局。
+- **Infinite canvas** — node-based composition of assets and generation tasks, with drag-and-drop connections, grouping, and version history; WebSocket progress updates in real time.
+- **Short-drama pipeline** — script parsing → per-episode review → character/scene/prop assets → storyboard → first frame → video → review → composition/export.
+- **Multiple model providers** — OpenAI-compatible APIs, Volcengine Ark (Seedream/Seedance), Vidu, ComfyUI local endpoints, and more. Configure providers and probe model lists in the admin UI; API keys are masked in responses.
+- **Optional local inference** — resource-pool scheduling for local models such as MiniMax H3, Wan 2.2, Flux.1, and Qwen-Image. A mock mode lets you exercise the full pipeline without GPU dependencies.
+- **Multi-user and data isolation** — built-in administrator account; business data is isolated by `owner_user_id`; unauthorized access returns 404.
+- **Credits and billing (optional)** — pre-authorization/settlement, per-call billing, and automatic refunds on failure.
+- **Responsive UI** — layouts for desktop, tablet, and phone.
 
-## 技术栈
+## Tech stack
 
-| 层 | 技术 |
+| Layer | Technology |
 | --- | --- |
-| 后端 | Python 3.11+、FastAPI、SQLAlchemy、SQLite、WebSocket |
-| 前端 | React 19、TypeScript、Vite 6、React Flow（@xyflow/react）、zustand |
-| 生成 | OpenAI 兼容端点 / 火山方舟 / Vidu / ComfyUI / 本地 Diffusers 推理 |
+| Backend | Python 3.11+, FastAPI, SQLAlchemy, SQLite, WebSocket |
+| Frontend | React 19, TypeScript, Vite 6, React Flow (@xyflow/react), zustand |
+| Generation | OpenAI-compatible endpoints / Volcengine Ark / Vidu / ComfyUI / local Diffusers inference |
 
-## 目录结构
+## Repository layout
 
 ```text
-apps/web/                 前端（React + Vite）
-  src/api/                REST 与 WebSocket 客户端
-  src/canvas/             无限画布
-  src/drama/              短剧/漫剧工作区
-  src/pages/              登录、系统管理等页面
-  src/styles.css          桌面与平板样式
-  src/styles-mobile.css   手机样式
+apps/web/                 Frontend (React + Vite)
+  src/api/                REST and WebSocket client
+  src/canvas/             Infinite canvas
+  src/drama/              Short-drama workspace
+  src/pages/              Login, admin, and other pages
+  src/styles.css          Desktop and tablet styles
+  src/styles-mobile.css   Phone styles
 
 server/
   app/
-    main.py               FastAPI 入口
-    api/                  REST 路由
-    agent/                LLM 提示词、技能包、编排
-    core/                 配置、模型服务、任务引擎、缓存、计费
-    db/                   ORM 模型与会话
-    runners/              任务执行器
-    script/               剧本解析与提示词组装
-    inference/            本地推理管线
-  test_*.py               独立测试脚本
-  pyproject.toml          后端依赖
-  .env.example            配置模板
+    main.py               FastAPI entry point
+    api/                  REST routes
+    agent/                LLM prompts, skill packs, orchestration
+    core/                 Config, providers, task engine, cache, billing
+    db/                   ORM models and sessions
+    runners/              Task runners
+    script/               Script parsing and prompt assembly
+    inference/            Local inference pipelines
+  test_*.py               Standalone test scripts
+  pyproject.toml          Backend dependencies
+  .env.example            Configuration template
 ```
 
-## 快速开始
+## Quick start
 
-### 1. 启动后端
+### 1. Start the backend
 
-需要 Python 3.11 或更高版本。
+Python 3.11 or newer is required.
 
 ```bash
 cd server
@@ -67,23 +67,23 @@ source .venv/bin/activate
 
 pip install -e .
 
-# 复制配置模板（Windows PowerShell 用 Copy-Item .env.example .env）
+# Copy the config template (Windows PowerShell: Copy-Item .env.example .env)
 cp .env.example .env
 
 uvicorn app.main:app --host 127.0.0.1 --port 8800
 ```
 
-首次启动会自动创建 SQLite 数据库（`server/data/studio.db`）和内置管理员账号：
+On first startup the server creates a SQLite database at `server/data/studio.db` and seeds a built-in administrator:
 
-- 用户名：`admin`
-- 密码：`admin123`
-- 首次登录后系统会要求修改密码。
+- Username: `admin`
+- Password: `admin123`
+- The UI forces a password change after the first login.
 
-接口文档：<http://127.0.0.1:8800/docs>
+API docs: <http://127.0.0.1:8800/docs>
 
-### 2. 启动前端
+### 2. Start the frontend
 
-需要 Node.js 18 或更高版本。
+Node.js 18 or newer is required.
 
 ```bash
 cd apps/web
@@ -91,11 +91,11 @@ npm install
 npm run dev
 ```
 
-浏览器打开 <http://localhost:5173>。Vite 已把 `/api`、`/files`、`/ws` 代理到 `127.0.0.1:8800`。
+Open <http://localhost:5173>. Vite proxies `/api`, `/files`, and `/ws` to `127.0.0.1:8800`.
 
-### 3. 没有 GPU 或模型时先跑通链路
+### 3. Run without a GPU or models
 
-未配置第三方模型、也没有安装本地推理依赖时，可以强制使用 mock 模式：
+If no provider is configured and local inference dependencies are not installed, force mock mode to exercise the full pipeline:
 
 ```bash
 # Windows
@@ -106,16 +106,16 @@ export AVS_MOCK=1
 uvicorn app.main:app --host 127.0.0.1 --port 8800
 ```
 
-mock 模式会生成占位图片/视频，用于验证画布、任务队列、短剧流水线等完整交互。
+Mock mode produces placeholder images and videos, which is enough to validate the canvas, task queue, and short-drama workflow.
 
-## 配置模型服务
+## Configure model providers
 
-两种方式，任选其一：
+There are two options:
 
-1. 复制 `server/.env.example` 为 `server/.env`，填写对应变量；
-2. 登录后进入「系统管理 → 模型服务」，在线新增 Key 与端点。
+1. Copy `server/.env.example` to `server/.env` and fill in the values.
+2. Sign in and open **System → Model Services** to add keys and endpoints in the UI.
 
-主要环境变量（每类任务独立配置）：
+Each task type has its own provider configuration:
 
 ```text
 AVS_LLM_PROVIDER / AVS_LLM_BASE_URL / AVS_LLM_API_KEY / AVS_LLM_MODEL
@@ -125,22 +125,22 @@ AVS_I2V_PROVIDER / AVS_I2V_BASE_URL / AVS_I2V_API_KEY / AVS_I2V_MODEL
 AVS_TTS_PROVIDER / AVS_TTS_BASE_URL / AVS_TTS_API_KEY / AVS_TTS_MODEL
 ```
 
-其他常用变量见 `server/.env.example`。API Key 只保存在本地 `.env` 或本地 SQLite 中，列表接口只返回前 4 位和后 4 位。
+See `server/.env.example` for the full list. API keys are stored only in the local `.env` file or local SQLite database; list endpoints return only the first and last four characters.
 
-### 本地推理（可选）
+### Local inference (optional)
 
 ```bash
 cd server
 pip install -e ".[inference]"
-# 需要配音时
+# Optional text-to-speech support
 pip install -e ".[tts]"
 ```
 
-本地推理需要 NVIDIA GPU 和对应 CUDA 版本的 PyTorch，模型权重会下载到 `server/models/`（体积较大，请先确认磁盘与显存）。不安装也能使用远程模型服务或 mock 模式。
+Local inference requires an NVIDIA GPU and a matching CUDA build of PyTorch. Model weights are downloaded to `server/models/` (large; check free disk space and VRAM first). You can still use remote providers or mock mode without installing these dependencies.
 
-## 运行测试
+## Run tests
 
-测试是独立脚本，建议在仓库根目录执行。以 Windows 为例：
+Tests are standalone scripts. Run them from the repository root. On Windows:
 
 ```bash
 server/.venv/Scripts/python server/test_auth_multitenant.py
@@ -155,27 +155,31 @@ server/.venv/Scripts/python server/test_version_trace.py
 server/.venv/Scripts/python server/test_vidu.py
 ```
 
-macOS / Linux 把 `server/.venv/Scripts/python` 换成 `server/.venv/bin/python`。测试使用临时数据目录和 mock 模式，不会污染 `server/data/`，也不需要外部 API Key。
+On macOS / Linux, replace `server/.venv/Scripts/python` with `server/.venv/bin/python`. The tests use temporary data directories and mock mode, so they do not touch `server/data/` and do not need external API keys.
 
-## 部署与安全提醒
+## Deployment and security
 
-- 首次登录后立即修改默认管理员密码。
-- `server/.env`、`server/data/`、`server/models/` 已被 `.gitignore` 排除，不要提交密钥或运行数据。
-- 对外部署时建议配置 HTTPS 和反向代理，并通过 `AVS_CORS_ORIGINS` 收紧跨域来源。
-- 生产环境请按实际用户规模配置数据库备份、日志轮转和访问控制。
+- Change the default administrator password immediately after the first login.
+- `server/.env`, `server/data/`, and `server/models/` are excluded by `.gitignore`; never commit keys or runtime data.
+- For public deployments, use HTTPS behind a reverse proxy and restrict allowed origins with `AVS_CORS_ORIGINS`.
+- Configure database backups, log rotation, and access control appropriate for your user base.
 
-## 第三方代码与许可
+## Third-party code and licenses
 
-本项目以 MIT 许可证开源。仓库中包含少量第三方代码，其许可与版权见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)：
+This project is released under the MIT License. A few files contain third-party code; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md):
 
-- `apps/web/src/ui/Aurora.tsx`：来自 React Bits，遵循 MIT + Commons Clause v1.0。
-- `server/app/inference/hidream_o1/`：部分文件来自 HiDream-O1-Image（MIT）、HuggingFace Diffusers、Qwen、Alibaba Wan（Apache-2.0），原始版权与许可头已保留。
-- 前端 npm 依赖的许可见 `apps/web/package-lock.json`。
+- `apps/web/src/ui/Aurora.tsx`: from React Bits, licensed under MIT + Commons Clause v1.0.
+- `server/app/inference/hidream_o1/`: parts are derived from HiDream-O1-Image (MIT), HuggingFace Diffusers, Qwen, and Alibaba Wan (Apache-2.0); original copyright and license headers are retained.
+- Frontend npm dependency licenses are listed in `apps/web/package-lock.json`.
 
-## 许可证
+## License
 
 [MIT](LICENSE)
 
-## 贡献
+## Contributing
 
-欢迎提交 Issue 和 Pull Request。提交前请先运行上面的测试脚本，并确保没有提交任何密钥、本地数据库或生成产物。
+Issues and pull requests are welcome. Before submitting, run the tests above and make sure no keys, local databases, or generated artifacts are included.
+
+## Repository status
+
+This public repository is a one-way mirror of a private development repository. Code snapshots are exported with an allowlist, so internal design documents and local runtime data never enter this repository. Pull requests are welcome; accepted changes are integrated upstream and appear here on the next sync.
