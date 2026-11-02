@@ -25,12 +25,3 @@ dist/
 .DS_Store
 Thumbs.db
 *.log
-
-# Internal-only material (not published in this repository)
-docs/
-scripts/
-AGENTS.md
-CLAUDE.md
-server/_*.py
-server/test_real_parse.py
-server/test_short_parse.py

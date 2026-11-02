@@ -4,8 +4,6 @@
 
 An infinite-canvas AI video production workbench. Arrange text, images, video, and audio on a free-form canvas, and run the complete AI short-drama pipeline: script parsing, per-episode review, asset extraction, storyboarding, first-frame generation, video generation, review, and final composition.
 
-> This is the open-source code release. It does **not** include the internal design documents (`docs/`) or local runtime data. References to `docs/design/...` in code comments are internal document IDs kept for historical context.
-
 ## Highlights
 
 - **Infinite canvas** — node-based composition of assets and generation tasks, with drag-and-drop connections, grouping, and version history; WebSocket progress updates in real time.
@@ -79,7 +77,7 @@ On first startup the server creates a SQLite database at `server/data/studio.db`
 - Password: `admin123`
 - The UI forces a password change after the first login.
 
-API docs: <http://127.0.0.1:8800/docs>
+Interactive API reference: <http://127.0.0.1:8800/docs>
 
 ### 2. Start the frontend
 
@@ -182,4 +180,4 @@ Issues and pull requests are welcome. Before submitting, run the tests above and
 
 ## Repository status
 
-This public repository is a one-way mirror of a private development repository. Code snapshots are exported with an allowlist, so internal design documents and local runtime data never enter this repository. Pull requests are welcome; accepted changes are integrated upstream and appear here on the next sync.
+This public repository is a one-way mirror of a private development repository. Pull requests are welcome; accepted changes are integrated upstream and appear here on the next sync.
