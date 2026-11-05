@@ -14,6 +14,24 @@ An infinite-canvas AI video production workbench. Arrange text, images, video, a
 - **Credits and billing (optional)** — pre-authorization/settlement, per-call billing, and automatic refunds on failure.
 - **Responsive UI** — layouts for desktop, tablet, and phone.
 
+## Screenshots
+
+**Script parsing and per-episode review**
+
+![Script workspace](screenshots/02-drama-script.png)
+
+**Episode workspace: review → assets → storyboard**
+
+![Episode workspace](screenshots/03-episode-workspace.png)
+
+**Infinite canvas**
+
+![Canvas](screenshots/04-canvas.png)
+
+**Mobile layout**
+
+<img src="screenshots/05-mobile-episodes.png" width="320" alt="Mobile episode workspace">
+
 ## Tech stack
 
 | Layer | Technology |
